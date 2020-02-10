@@ -1,0 +1,14 @@
+# depslib dependency file v1.0
+1568133815 source:c:\users\qazza\desktop\os-project-1\main.c
+	"main.h"
+
+1568134133 c:\users\qazza\desktop\os-project-1\headers\main.h
+	<stdio.h>
+	<stdlib.h>
+
+1568133735 source:c:\users\qazza\desktop\os-project-1\parse.c
+	"main.h"
+	"parse.h"
+
+1568133275 c:\users\qazza\desktop\os-project-1\headers\parse.h
+
