@@ -1,314 +1,281 @@
-/*
- *Project1
- *Kristina
- *John
- */
 
-#include <stdio.h>
-#include <string.h>
+// Kristina
+// John
+
+
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <stdbool.h>
+ #include <sys/wait.h>
+ #include <sys/types.h>
+ #include <unistd.h>
+ #include <string.h>
+ #include <stdbool.h>
+ #include <stdio.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
+ 
+//global, holds path set by user
+ char* set_path = "/bin";
+ 
+ //static
+ static int single_argument = 1;
+ static int log_counter = 0;
+ static int controller_loop = 0;
+ static int arg_counter = 0; //count argument counter
 
+//main routine
+ int main(int argc, char** argv){
+ 
+      char* user_input_command;// entire line of commands in shell(we call it dash) entered by the user
+      char** dash_parallel_commands;// parallel commands, each commands is separated by '&' operator
+      bool loop_control = true;// control for do-while loop
+      bool is_batch = false; //batch mode      
+      
 
-
-//function prototype
-char* readFromBatchText(int argc, char** argv);
-int executeInDash(char** cmds, int countCommands);
-
-//declaring and initializing
-static int singleArgument = 0;
-char* setPath = "/bin";
-
-/*
- *main routine
- *argc: number of arguments passed
- *argv: array of character pointers which points to each argument passed to the program
- *
- */
-
-int main(int argc, char** argv){
-
-     char* userInput; //line of input
-     //char** commands; //command that user entered
-    // int singleArgument;
-     bool loopControl  = true;
-    
-           
-     //check if there is any arguments supplied from the command line
-     if(argc == 1){
-        printf("dash> \n");
-	 // singleArgument++;     
-     }
-     if( argc == 2 ) {
-         // printf("The argument supplied is %s\n", argv[1]);
-	userInput = readFromBatchText(argc, argv);
-    	 printf("%s",userInput); //debugging
-    }
-
-     if( argc > 2 ) {
-       printf("Error: Too many arguments.\n");
-       exit(1); //an error occured so terminates the program
-     }
-
-     //while loop, if loopControl is true: goes inside while loop
-     while(loopControl){
-     
-         char* buffer = NULL; //buffer is null, address of the first character position where the input string will be stored
-	 char** cmds; //pointer to char pointer of cmds
-
-	 //size_t: unsigned integral data type, required by the getline()
-	 size_t bufSize = 0;
-         
-	 if(singleArgument == 1){
-	    printf("dash> "); //single argument in dash shell
-
-	    //getline() will take three arguments:
-	    //&input: address of the first character position where the input string will be stored. 
-	    //&bufSize:address of the variable that holds the size of the input buffe.
-	    //stdin: input file handle, and can use getline() to read a line of text from a file
-	    int count = getline(&userInput, &bufSize, stdin);	 
-	 }
-	 
-	 //look for exit in commands when enter by the user
-         char* enterExit = "exit\n";
-
-	 //strcmp():compares the string pointed to, by str1 to the string pointed to by str2.
-	 //checking whether the command is a built-in command or not.
-	 if(strcmp(userInput, enterExit) == 0){
-	    kill(0, SIGTERM);
-	    exit(0); //comparison between two strings are equal, successfully done 
-	 }
-         
-	 //to parse the input line into constituent pieces, using tokenization
-	 int countCommands = 0; //keeping counter for number of commands as entered by the user and it initilize to zero
-	 int idx = 0; //index
-
-	 char* token; //char pointer to each token
-         cmds = malloc(sizeof(char*)); //allocates byte size in memory dynamically 
-
-	 //strtok():breaks string into a series of tokens using the delimiter. Herre deliminator are &, new line(\n)
-	 //"\r" is carriage return which is used to move the cursor back to the beginning of the line, to overwrite it with new contents
-	 token = strtok(userInput, "&\r\n"); 
-         
-	 //check if we hit end of token
-	 while(token != NULL){
-	 
-	      countCommands++; //incrementing number of commands
-	      cmds[idx] = token; //inserting each token to fill up the commands char**
-	      idx++;
-	      //realloc(): resizing the allocated memory dynamically previously allocated by the malloc
-	      cmds = realloc(cmds, sizeof(char*) * (idx+1));
-	      token = strtok(NULL, "&\r\n");
-	  
-	 }
-	 cmds[idx] = NULL; //string has been fully tokenized since it reached end of the string that is a null character.
-         
-	 loopControl = executeInDash(cmds, countCommands); //execute when you pass in the commands
-	 free(cmds); //cleaning up memory leak
-
-	 if(singleArgument != 1){
-	    singleArgument = 1;
-	 }
-     
-     }
-			  
-     return 0;
-}
-
-
-//function read from file
-char* readFromBatchText(int argc, char** argv){
-
-    char *buffer = NULL; //buffer is used to put data in
-    FILE *filePointer; //declaring file pointer, communication between file and pointer
-    int batchSize;
-    int readFileSize;
-
-   // filePointer = fopen("batch.txt","r");
-
-    //fopen() is used to open an existing file
-    //"r" read mode, if the file is opened successfully fopen() loads it into memory and sets up a pointer which points to the first character in it
-    if((filePointer = fopen(argv[1], "r")) == NULL){
-       
-       /* print this one and only error message
-       *  whenever you encounter an error of any type
-       *  The error message should be printed to stderr (standard error)
-       */
-
-       char error_message[30] = "An error has occurred\n";
-       write(STDERR_FILENO, error_message, strlen(error_message));
-       
-       //if the shell is invoked with more than one file or if the shell is
-       //passed a bad batch file, it should exit by calling exit(1)
-       exit(1);
-    }
-    if(filePointer){
-
-         //fseek(): moving to a specific location in a file
-	 //SEEK_END: end of the file
-	 fseek(filePointer,0, SEEK_END);
-
-	 //ftell(): used to find out the position of file pointer in the file with respect to starting of the file.
-         batchSize = ftell(filePointer);
-         
-	 //rewind():points to the beginning of the file
-	 rewind(filePointer);
-
-	 //Allocates size bytes
-	  buffer = (char*) malloc(sizeof(char) * (batchSize + 1));
-         
-	  //fread(): read the entire file
-	  readFileSize = fread(buffer, sizeof(char), batchSize, filePointer);
+      if(argc == 2){
           
-	  if(batchSize != readFileSize){
-	     free(buffer);
-	     buffer = NULL;
-	     exit(0);  
-	  
-	  }
-	  //fclose(): close the file that is being pointed by the filePointer.
-	  fclose(filePointer);
-        
-    }
-       return buffer;
+          arg_counter = argc;
+          printf("%s%d", "I am argc==2. Reading from file.\n");
+          single_argument = 0;
+          
+          int string_list;
+          int read_size_from_file;
+          FILE *file_handler;  //declaring handler pointer, communication between file and pointer
+          
+          //fopen() is used to open an existing file
+          //"r" read mode, if the file is opened successfully fopen() loads it into memory and sets up a pointer which points to the first character in it
+          file_handler = fopen(argv[1], "r");
+          
+          //fseek(): moving to a specific location in a file
+	        //SEEK_END: end of the file
+          fseek(file_handler, 0, SEEK_END);
+          
+          //ftell(): used to find out the position of file pointer in the file with respect to starting of the file.
+          string_list = ftell(file_handler);
+          
+          //rewind():points to the beginning of the file
+          rewind(file_handler);
+          
+          //Allocates size bytes
+          user_input_command = (char*) malloc(sizeof(char) * (string_list + 1) );
+          
+          //fread(): read the entire file
+          read_size_from_file = fread(user_input_command, sizeof(char), string_list, file_handler);
+          
+          //close the open file
+          fclose(file_handler);
+      
+		}
+          
+      if(argc > 2){
+          printf("%s", "Error: Too many arguments, exiting dash shell.\n");
+          exit(1); //error 
+      }
 
-}
 
-//function to execute the commands in dash shell
-int executeInDash(char** cmds, int countCommands){
+      int num_of_commands = 0;// count of number of commands as entered by the user and it initilize to zero
 
-   char* commands1; //each command
-   char** commands2; //char pointer to pointer of arguments and Command
-   char bufferSize[512]; //size of buffer is 512 bytes
-   int counter = 0; //counter for commands that are in batch.txt
-   int idx = 0; //index
-   int position;
-
-   while(counter < countCommands){
-       
-       //fork(): creates  a new process by duplicating the calling process.  The new process, referred to
-       // as the child, is an exact duplicate of the calling process, referred to as  the  parent
-       int pid = fork();
-
-       //Checking whether pid is child or parent
-       if(pid < 0){
-         char error_message[30] = "An error has occurred\n";
-	       write(STDERR_FILENO, error_message, strlen(error_message));
-         exit(1); //error occured since pid is less than 0 that means it can not create child process        
-       }else if(pid == 0){ //child process is successfully created
-          commands2 = malloc(sizeof(char*));
-	        commands1 = strtok(cmds[counter], " \n\r"); //returns null
-	      
-	      while(commands1 != NULL){
-	         commands2[idx] = commands1; //fill the char
-		       idx = idx+1;
-		       commands2 = realloc(commands2, sizeof(char*) * (idx + 1));
-           commands1 = strtok(NULL, " \n\r"); //end of tokens
-	               
-	      }
-        commands2[idx] = NULL; //set the last index to null
-
-	      /*checking if the command enter in the dash shell is built-in-command or not. If it is, it should not be executed like other programs.*/
+      //main loop
+      do{
+      
+          /* Get the entire line */
+          char* buffer= NULL;////set buffer to null, address of the first character status where the input string will be stored
+          char** commands;//pointer to char pointer of commands
+          size_t buffer_size = 0;//size_t: unsigned integral data type, required and returned by the getline()
+          
+          if(single_argument == 1){
+             // printf("I am single argument, value is %i\n");
+              printf("dash> "); //single argument in dash shell
+              
+              
+        	    //getline()is used to get the line entered by the user and it takes 3 parameters:
+        	    //&input: address of the first character position where the input string will be stored. 
+        	    //&bufSize:address of the variable that holds the size of the input buffe.
+        	    //stdin: input file handle, and can use getline() to read a line of text from a file
+              int result = getline(&user_input_command,&buffer_size,stdin); 
+              //printf ("The result in getline is %i\n", result);
+          }
+          
+          //look for exit in commands when enter by the user
+          char* check_for_exit = "exit\n";
+         
+          //strcmp():compares two strings pointed to, by string1 to the string pointed to by string2.
+	        //checking whether the command is a built-in command or not.
+          if(strcmp(user_input_command,check_for_exit)== 0){
+              //printf("%s", "Exit successfully, dash shell terminated.\n");
+              exit(0); //gracefully exit
+          }
+          
+          /****Parse the input into constituent pieces, using tokenization********/
+          int index = 0; //index for command entered by the user
+          char* single_command;// char pointer to single command
+          //printf ("I am single command0 %p\n", &single_command);
+          commands = malloc(sizeof(char*)); //allocate byte size memory dynamically in heap and set individual to 0
+          //printf ("I am commands0 %p\n", &commands);
+          
+           //strtok():breaks string into a series of tokens the delimiter. 
+           //Here tokenize the user_input_command and delimiter is either '&' or newline(\n)
+	        //"\r" is carriage return which is used to move the cursor back to the beginning of the line, to overwrite it with new contents
+          single_command = strtok(user_input_command,"&\r\n");
+          //printf ("I am single command1 %p\n", &single_command);
+          
+          //check if we hit end of single command
+          /**while**/
+          while(single_command != NULL){ 
+              num_of_commands++; //keep count of number of commands
+              //printf ("Number of command is  %i\n", num_of_commands);
+              commands[index] = single_command; //fill the commands char** by inserting individual command
+              index++;
+              
+              //realloc(): resizing the allocated memory dynamically previously allocated by the malloc
+              commands = realloc(commands,sizeof(char*)*(index+1));
+              //printf ("I am commands1 %p\n", &commands);
+              single_command = strtok(NULL,"&\r\n"); //set the last index to null, single_command is null
+              //printf ("I am single command2 %p\n", &single_command);
+          }
+          //printf ("Number of commands: %i\n", num_of_commands);
+          //keeping counter for number of commands entered by the user
+          if(arg_counter != 0){
+              if(log_counter == 0){
+                  controller_loop  = num_of_commands;
+                  log_counter++;
+              }
+          }
+          commands[index] = NULL;//set the last to NULL. string has been fully tokenized since it reached end of the string that is a null character.
+          
+          char** list_of_commands;// pointer to the list of command_and_argument
+          char * command_and_argument;// individual command and its arguments
+          int counter = 0;  //counter for individual command and its argument
+          int var = 0; //index of commands
+          char char_buffer[128]; //size of buffer is 128 bytes
+          int status; //
+          
+          //fork(): creates  a new process by duplicating the calling process.  The new process, referred to
+          // as the child, is an exact duplicate of the calling process, referred to as  the  parent
+          //printf ("I am list of commands1 %p\n", &list_of_commands);
+          //printf ("I am counter %i\n", counter, "less than num of commands %i\n", num_of_commands);
+          while(counter < num_of_commands){
+              int pid = fork();
+              
+              //Checking whether pid is child or parent
+              if(pid < 0){
+                  //print error message             
+                  char error_message[30] = "An error has occurred\n";
+                  write(STDERR_FILENO, error_message, strlen(error_message));
+                  exit(1); //error occured since pid is less than 0 that means it can not create child process        
+              
+              }
+              
+              //create child process
+              if(pid == 0){
+              //printf ("I am child, process id is  %i\n", pid);
+              list_of_commands= malloc(sizeof(char*));
+              command_and_argument=strtok(commands[counter]," \n\r");// returns NUlL if no more tokens
+              //printf ("I am command and argument1 %p\n", &command_and_argument);
+              
+                  while(command_and_argument != NULL){
+                      list_of_commands[var] = command_and_argument;
+                      var = var+1;
+                      //printf ("I am var and number is %i\n", var);
+                      list_of_commands = realloc(list_of_commands,sizeof(char*)*(var+1));
+                      //printf ("I am list of commands2 %p\n", &list_of_commands);
+                      command_and_argument = strtok(NULL," \n\r");
+                      //printf ("I am command and argument2 %p\n", &command_and_argument);                  
+                  }                  
+                  list_of_commands[var] = NULL;
+                 // printf ("I am list of commands3 %p\n", &list_of_commands);
+                  
+                  /*checking if the command enter in the dash shell is built-in-command or not. If it is, it should not be executed like other programs.*/
              
-	      //cd: cd always take one argument (0 or >1 args should be signaled as an error). To
-	      //change directories, use the chdir()system call with the argument supplied by the
-	      //user; if chdir fails, that is also an error.
-             
-	      if(strcmp(commands2[0], "cd") == 0){
-           int signal = chdir(commands2[1]);
-		       //if signal fails then an error occured
-           if(signal == -1){
-		           char error_message[30] = "An error has occurred\n";
-		           write(STDERR_FILENO, error_message, strlen(error_message));
-		           exit(1); //if signal is less than -1, error and exit
-           }         
-		       return 1;	           
-	      }
-
-	      // checking whether the path command is a built-in-command or not
-	      if(strcmp(commands2[0], "path") == 0){
-	         if(commands2[1] != NULL){
-		    
-		            //strcpy():function copies the entire string to the destination string
-		            strcpy(bufferSize, setPath);
-		            //strlen():takes one argument,calculates the length of a given string.
-		            int length = strlen(bufferSize);
-                bufferSize[length] = ':';
-		            //strcat():takes two arguments, will append a copy of the source string to the end of destination string.
-		            strcat(bufferSize, commands2[1]);			 
-		       }
-		      return 1;      
-	      }
-
-	      //Redirection: sending the output of a program to a file rather than to screen
-	      //will be using ">" character for redirection of standard output
-	      int redirectFile;
-	      bool redirectBool = false;
-	      char sizeOutput[512]; //512 bytes
-	      int i;
-        
-        //for loop
-	      for(i = 0; commands2[i] != '\0'; i++){
-	         if(strcmp(commands2[i], ">") == 0){
-		           commands2[i] = NULL;
-		           strcpy(sizeOutput, commands2[i+1]);
-               redirectBool = true;		 
-		 
-		        }
-
-	       }	 
-	         
-		     if(redirectBool){
-		         int redirectFile;
-		         //print error message whenever encounter an error of any type
-		         //copymode 0644
+          	      //cd: cd always take one argument (0 or >1 args should be signaled as an error). To
+          	      //change directories, use the chdir()system call with the argument supplied by the
+          	      //user; if chdir fails, that is also an error.
+           
+                  /******cd commmand************/
+                  if(strcmp(list_of_commands[0], "cd") == 0){                  
+                      int num = chdir(list_of_commands[1]);
+                      if(num == -1){
+                          //print error message
+                            char error_message[30] = "An error has occurred \n";
+                            write(STDERR_FILENO, error_message, strlen(error_message));
+                            return -1; //returning an error                                                
+                      }              
+                  
+                  loop_control= 1;
+                  }
+                  
+                  /******path command*************/
+                  if(strcmp(list_of_commands[0],"path") == 0){
+                  
+                      if(list_of_commands[1] == NULL){
+                  
+                          //print error message
+                          char error_message[30] = "An error has occurred \n";
+                          write(STDERR_FILENO, error_message, strlen(error_message));
+                          return -1; //returning an error 
+                  
+                      }
+                      if(list_of_commands[1]!= NULL){
+                          
+                          //strcpy():function copies the entire string to the destination string
+                          strcpy(char_buffer, set_path);
+                          //strlen():takes one argument,calculates the length of a given string.
+                          int length = strlen(char_buffer);
+                          char_buffer[length] = ':';
+                          //strcat():takes two arguments, will append a copy of the source string to the end of destination string.
+                          strcat(char_buffer, list_of_commands[1]);                         
+                      }
+                      loop_control = 1;
+                  }
+                      
+                  
+                  
+          	      //Redirection: sending the output of a program to a file rather than to screen
+          	      //will be using ">" character for redirection of standard output
+                  
+                  /******output redirection********/
+                  int fileDescriptor;
+                  bool is_redirect = false;
+                  char output_file[128]; //size of standard output file is 128 bytes
+                  int i;
+                  
+                  for(i=0;list_of_commands[i]!='\0';i++){
+                      if(strcmp(list_of_commands[i],">") == 0){
+                          list_of_commands[i] = NULL;
+                          strcpy(output_file,list_of_commands[i+1]);
+                          is_redirect = true;
+                      }
+                  }
+                  if (is_redirect){
+                      int fileDescriptor = creat(output_file, 0644);
+                      //copymode 0644
 		         //creat: creates a file of the given name if the file does not currently exist and opens the file for writing. 
              //If the file does exist, it merely opens the file for writing.
-             if((redirectFile = creat(sizeOutput, 0644)) < 0){
-		             //print the error message
-		             char error_message[30] = "An error has occurred\n";
-		             write(STDERR_FILENO, error_message, strlen(error_message));
-		             exit(0); //exit the dash shell	    
-		          }
-		    
-		          //The dup2() system call performs the same task as dup(), but instead  of using the lowest-numbered unused file descriptor, it uses the file
-		          //descriptor number specified in newfd.  If the file descriptor newfd was previously open, it is silently closed before being reused.
-		    
-		          dup2(redirectFile, 1);
-		          close(redirectFile); //close it	 
-		 
-           }
-                 //print error message
-		       if((execvp(commands2[0], commands2)) == -1){
-		           char error_message[30] = "An error has occurred\n";
-		           write(STDERR_FILENO, error_message, strlen(error_message));
-		 
-		       } 
-		 
-		       }else{
-		 
-		           while(!(wait(&position) == pid)){		       
-		              //print error meaasge
-			            char error_message[30] = "An error has occurred\n";
-			            write(STDERR_FILENO, error_message, strlen(error_message));		       
-		            }			 
-		       }
-		       counter++;
-	      
-	         }
-           return 1; 
+                      if(fileDescriptor < 0){
+                          //print error message
+                          char error_message[30] = "An error has occurred \n";
+                          write(STDERR_FILENO, error_message, strlen(error_message));
+                          exit(1);  //exit the dash shell                   
+                      
+                      }
+                      dup2(fileDescriptor,1);
+                      close(fileDescriptor);
+                  }
+                  
+                  execvp(list_of_commands[0],list_of_commands);
+                  }
+              else{
+                    //avoid race condition error
+                    while (!(wait(&status) == pid)){
+                        //print error message
+                        char error_message[30] = "An error has occurred \n";
+                        write(STDERR_FILENO, error_message, strlen(error_message));
+                    }
+                  }
+                  counter++;
+         }
+         free(commands);
        
-       }
-   
-  
+      }while(loop_control && log_counter == 0 );
 
-
-
-
-
-
-
+        return 0;
+ }
